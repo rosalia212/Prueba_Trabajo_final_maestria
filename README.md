@@ -7,7 +7,7 @@ Analizar datos de juego de jugadores de alto nivel en League of Legends, extraí
 
 # Objetivos específicos
 - Definir el perfil y las características de los jugadores de rango Maestro, Gran Maestro y Challenger en League of Legends, considerando variables como experiencia, frecuencia de juego, rol preferido y el tipo de rol desempeñado dentro de las partidas, con el fin de caracterizar los estilos de juego asociados a cada categoría.
-  **Conclusiónes generales**.
+  **Conclusiones generales**.
   Los Masters tienen un promedio de 13428.55 de experiencia de campeon, con una desviación estandar de 4562.527 y un tiempo jugado de	1630.551 con desviación   estandar de	400.9034.Las posiciónes preferidas son Middle y Jungle.
   Los Grandmaster tienen un promedio de 13027.64	de experiencia de campeon, con una desviación estandar de 4424.238 y un tiempo jugado de	1592.610	 con desviación estandar de 389.5518. Las posiciónes preferidas son Jungle y Bottom.
   Los Challenger tienen un promedio de 12567.57	de experiencia de campeon, con una desviación estandar de 	4516.364	 y un tiempo jugado de 1594.505		 con desviación estandar de 381.2901. Las posiciónes preferidas son Utility y Jungle.
