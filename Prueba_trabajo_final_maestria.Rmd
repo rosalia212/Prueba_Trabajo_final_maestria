@@ -1,5 +1,198 @@
 ---
-title: "Prueba_trabajo_final_maestria"
-output: html_document
+title: "Analisis de patrones conductuales vinculados al rendimiento deportivo"
+author: "Rosalia"
+date: "2025-08-27"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+paquetes_necesarios <- c(
+  "flexdashboard", "tidyverse", "readxl", "readr", "dplyr", "ggplot2",
+  "ggrepel", "countrycode", "scales", "maps", "DT", "lorem", "png", "grid"
+)
+
+instalar_si_falta <- function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    install.packages(pkg)
+  }
+}
+message("Todos los paquetes necesarios están instalados.")
+
+library(tidyverse)
+library(readxl)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(countrycode)
+library(scales)
+library(maps)
+library(DT)
+library(lorem)
+library(png)
+library(grid)
+library(tinytex)
+library(corrplot)
+library(here)
+```
+```{r}
+getwd()
+Datos_APILOL <- read_csv ("C:/Users/Rosalía Carballo/OneDrive/Documentos/Prueba_Trabajo_final_maestria/Datos/ryse_database.csv")
+Datos <- Datos_APILOL
+```
+```{r}
+#Depuración de datos
+
+glimpse(Datos)
+summary(Datos)
+
+```
+```{r}
+colSums(is.na(Datos))
+```
+```{r}
+Datos |>
+  ggplot(aes(x = tier, y = champLevel)) +
+  geom_boxplot()
+```
+```{r}
+Datos |>
+  summarise(across(where(is.character), ~ n_distinct(.x)))
+```
+
+```{r}
+unique(Datos$tier)
+unique(Datos$championName)
+```
+Objetivo 1:
+
+Definir el perfil y las características de los jugadores de rango Maestro, Gran Maestro y Challenger en League of Legends, considerando variables como experiencia, frecuencia de juego, rol preferido y el tipo de rol desempeñado dentro de las partidas, con el fin de caracterizar los estilos de juego asociados a cada categoría.
+
+
+```{r}
+#filtrarlos según Tier(rango alto)
+
+datos_rango_alto <- Datos |>
+  filter(tier %in% c("MASTER", "GRANDMASTER", "CHALLENGER"))
+
+#Resumen Experiencia y frecuencia del juego
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    promedio_experiencia = mean(champExperience, na.rm = TRUE),
+    sd_experiencia = sd(champExperience, na.rm = TRUE),
+    promedio_Tiempojugado = mean(timePlayed, na.rm = TRUE),
+    sd_Tiempojugado = sd(timePlayed, na.rm = TRUE)
+  )
+```
+```{r}
+#Visualización de Experiencia y frecuencia del Juego
+
+datos_rango_alto |>
+  ggplot(aes(x = tier, y = champExperience)) +
+  geom_boxplot() +
+  labs(title = "Distribución de experiencia por rango")
+
+datos_rango_alto |>
+  ggplot(aes(x = tier, y = timePlayed)) +
+  geom_boxplot() +
+  labs(title = "Frecuencia de juego por rango")
+```
+```{r}
+#Resumen Posición desempeñada en partida
+datos_rango_alto |>
+  count(tier, individualPosition) |>
+  group_by(tier) |>
+  mutate(porcentaje = n / sum(n) * 100) |>
+  ggplot(aes(x = individualPosition, y = porcentaje, fill = tier)) +
+  geom_col(position = "dodge") +
+  labs(title = "Posición desempeñada por rango")
+```
+Conclusiónes generales del objetivo 1.
+
+Los Masters tienen un promedio de 13428.55 de experiencia de campeon, con una desviación estandar de 4562.527 y un tiempo jugado de	1630.551 con desviación estandar de	400.9034.Las posiciónes preferidas son Middle y Jungle.
+
+Los Grandmaster tienen un promedio de 13027.64	de experiencia de campeon, con una desviación estandar de 4424.238 y un tiempo jugado de	1592.610	 con desviación estandar de 389.5518. Las posiciónes preferidas son Jungle y Bottom.
+
+Los Challenger tienen un promedio de 12567.57	de experiencia de campeon, con una desviación estandar de 	4516.364	 y un tiempo jugado de 1594.505		 con desviación estandar de 381.2901. Las posiciónes preferidas son Utility y Jungle.
+
+
+Objetivo 2
+
+Definir y operacionalizar indicadores de rendimiento deportivo en e-sports sostenido, Tower Percentage, número de inhibidores destruidos, tiempo jugado,  tasa de victorias (winrate), oro ganado por minuto (GPM), KDA ajustado y control de objetivos, considerando además el componente temporal (por minuto o por fase de partida).
+
+```{r}
+# Winrate por rango
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    winrate = mean(winrate, na.rm = TRUE),
+    sd_winrate = sd(winrate, na.rm = TRUE),
+  )
+
+```
+
+```{r}
+#Oro ganado por duración de partida y KDA
+
+datos_rango_alto <- datos_rango_alto |>
+  mutate(
+    gpm = goldEarned/ (gameDuration / 60),
+    kda_ajustado = (kills + assists) / pmax(1, deaths),
+    )
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    GPM = mean(gpm, na.rm = TRUE),
+    sd_gpm = sd(gpm, na.rm = TRUE),
+    KDA = mean(kda_ajustado, na.rm = TRUE),
+    sd_Kda = sd(kda_ajustado, na.rm = TRUE),
+  )
+
+```
+
+```{r}
+#Torres
+datos_rango_alto <- datos_rango_alto |>
+  mutate(tower_dpm = damageDealtToTurrets / (gameDuration / 60))
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    DDTurrets = mean(tower_dpm, na.rm = TRUE),
+    sd_DDTurrets = sd(tower_dpm, na.rm = TRUE),
+  )
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    avg_tower_kills = mean(tower_kills, na.rm = TRUE)
+  )
+
+```
+
+```{r}
+#Inhibidores
+
+datos_rango_alto <- datos_rango_alto |>
+  mutate(IPM = inhibitor_kills / (gameDuration / 60))
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    Inhibidores = mean(IPM, na.rm = TRUE),
+    sd_IPM = sd(IPM, na.rm = TRUE),
+  )
+
+```
 
