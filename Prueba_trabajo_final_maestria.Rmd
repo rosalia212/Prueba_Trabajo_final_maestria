@@ -135,8 +135,8 @@ Definir y operacionalizar indicadores de rendimiento deportivo en e-sports soste
 datos_rango_alto |>
   group_by(tier) |>
   summarise(
-    winrate = mean(winrate, na.rm = TRUE),
-    sd_winrate = sd(winrate, na.rm = TRUE),
+    winrate = mean(win, na.rm = TRUE),
+    sd_winrate = sd(win, na.rm = TRUE),
   )
 
 ```
@@ -195,4 +195,235 @@ datos_rango_alto |>
   )
 
 ```
+```{r}
+#Control de objetivos
+datos_rango_alto <- datos_rango_alto |>
+  mutate(
+    total_objetivos = dragon_kills + baron_kills + herald_kills
+  )
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    Objetivos = mean(total_objetivos, na.rm = TRUE),
+    sd_Obj = sd(total_objetivos, na.rm = TRUE),
+  )
+```
+
+
+```{r}
+datos_rango_alto <- datos_rango_alto |>
+  mutate(
+    opm = total_objetivos / (gameDuration / 60)
+  )
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    ObjetivosxM = mean(opm, na.rm = TRUE),
+    sd_Opm = sd(opm, na.rm = TRUE),
+  )
+```
+
+```{r}
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    avg_opm = mean(opm, na.rm = TRUE),
+    avg_dragons = mean(dragon_kills),
+    avg_barons = mean(baron_kills),
+    avg_heralds = mean(herald_kills)
+  )
+```
+```{r}
+#Tiempo vivo
+
+datos_rango_alto <- datos_rango_alto |>
+  mutate(TV = longestTimeSpentLiving / (gameDuration / 60))
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    Tiempovivo = mean(TV, na.rm = TRUE),
+    sd_TV = sd(TV, na.rm = TRUE),
+  )
+```
+```{r}
+#Tiempo muerto
+
+datos_rango_alto <- datos_rango_alto |>
+  mutate(TM = totalTimeSpentDead / (gameDuration / 60))
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    Tiempomuerto = mean(TM, na.rm = TRUE),
+    sd_TM = sd(TM, na.rm = TRUE),
+  )
+```
+
+```{r}
+#Tiempo controlando
+
+datos_rango_alto <- datos_rango_alto |>
+  mutate(TC = totalTimeCCDealt / (gameDuration / 60))
+
+datos_rango_alto |>
+  group_by(tier) |>
+  summarise(
+    Tiempocontrol = mean(TC, na.rm = TRUE),
+    sd_TC = sd(TC, na.rm = TRUE),
+  )
+```
+Conclusiónes generales del objetivo 2.
+
+Por indicadores de resultado:
+Para los Challenger el 
+```{r}
+```
+```{r}
+resumen_rango_rol <- datos_rango_alto |>
+  group_by(tier, individualPosition) |>
+  summarise(
+    partidas = n(),
+    winrate = mean(win, na.rm = TRUE) * 100,
+    gpm = mean(goldEarned / (gameDuration / 60), na.rm = TRUE),
+    kda = mean((kills + assists) / pmax(1, deaths), na.rm = TRUE),
+    objetivos = mean(dragon_kills + baron_kills + herald_kills, na.rm = TRUE),
+    cc_pm = mean(totalTimeCCDealt / gameDuration * 60, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+resumen_rango_rol |>
+  ggplot(aes(x = individualPosition, y = winrate, fill = tier)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Winrate por posición y rango",
+    x = "Rol",
+    y = "Winrate (%)"
+  )
+```
+```{r}
+#Oro por minuto visualización
+
+resumen_rango_rol |>
+  ggplot(aes(x = individualPosition, y = gpm, fill = tier)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "GPM por posición y rango",
+    x = "Rol",
+    y = "Oro por minuto"
+  )
+```
+```{r}
+resumen_rango_rol |>
+  ggplot(aes(x = individualPosition, y = kda, fill = tier)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "KDA ajustado por posición y rango",
+    x = "Rol",
+    y = "KDA"
+  )
+```
+```{r}
+datos_rango_alto |>
+  ggplot(aes(x = individualPosition, y = gameDuration / 60)) +  # convertimos a minutos
+  geom_jitter(alpha = 0.4, color = "steelblue") +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 4, color = "red") +
+  labs(
+    title = "Duración de partida por jugador según rol",
+    x = "Rol desempeñado",
+    y = "Tiempo jugado (minutos)"
+  ) +
+  theme_minimal()
+```
+```{r}
+datos_rango_alto |>
+  ggplot(aes(x = gameDuration / 60, y = fct_inorder(puuid), color = individualPosition)) +
+  geom_point(alpha = 0.6) +
+  labs(
+    title = "Tiempo jugado por jugador, según rol y rango",
+    x = "Duración de partida (minutos)",
+    y = "Jugador (puuid)",
+    color = "Rol"
+  ) +
+  facet_wrap(~ tier) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+```
+```{r}
+datos_challenger <- datos_rango_alto |>
+  filter(tier == "CHALLENGER")
+
+
+library(ggplot2)
+library(forcats)
+
+datos_challenger |>
+  ggplot(aes(x = gameDuration / 60, y = fct_inorder(puuid), color = individualPosition)) +
+  geom_point(alpha = 0.6, size = 2) +
+  labs(
+    title = "Duración de partida por jugador (Challenger)",
+    x = "Tiempo jugado (minutos)",
+    y = "Jugador (puuid)",
+    color = "Rol"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+```
+```{r}
+datos_challenger <- datos_rango_alto |>
+  filter(tier == "MASTER")
+
+
+library(ggplot2)
+library(forcats)
+
+datos_challenger |>
+  ggplot(aes(x = gameDuration / 60, y = fct_inorder(puuid), color = individualPosition)) +
+  geom_point(alpha = 0.6, size = 2) +
+  labs(
+    title = "Duración de partida por jugador (Challenger)",
+    x = "Tiempo jugado (minutos)",
+    y = "Jugador (puuid)",
+    color = "Rol"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+```
+```{r}
+datos_challenger <- datos_rango_alto |>
+  filter(tier == "GRANDMASTER")
+
+
+library(ggplot2)
+library(forcats)
+
+datos_challenger |>
+  ggplot(aes(x = gameDuration / 60, y = fct_inorder(puuid), color = individualPosition)) +
+  geom_point(alpha = 0.6, size = 2) +
+  labs(
+    title = "Duración de partida por jugador (Challenger)",
+    x = "Tiempo jugado (minutos)",
+    y = "Jugador (puuid)",
+    color = "Rol"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+```
+```
+
+
 
