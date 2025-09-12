@@ -41,6 +41,13 @@ library(grid)
 library(tinytex)
 library(corrplot)
 library(here)
+library(stringr)
+library(janitor)
+library(lubridate)
+library(purrr)
+library(ggcorrplot)
+library(broom)
+
 ```
 ```{r}
 getwd()
@@ -55,21 +62,53 @@ summary(Datos)
 
 ```
 ```{r}
-colSums(is.na(Datos))
+cols_key   <- c("match_id","puuid")
+cols_num   <- c("leaguePoints","gameDuration","champExperience","champLevel",
+                "goldEarned","totalMinionsKilled","kills","deaths","assists",
+                "totalDamageDealt","totalDamageTaken","damageDealtToBuildings",
+                "damageDealtToObjectives","damageDealtToTurrets","visionScore",
+                "baron_kills","dragon_kills","tower_kills","herald_kills",
+                "inhibitor_kills","champion_kills","longestTimeSpentLiving",
+                "timeCCingOthers","timePlayed","totalTimeCCDealt",
+                "totalTimeSpentDead","totalAllyJungleMinionsKilled",
+                "totalEnemyJungleMinionsKilled","totalHeal","totalHealsOnTeammates",
+                "totalUnitsHealed","totalDamageShieldedOnTeammates")
 ```
+
 ```{r}
-Datos |>
-  ggplot(aes(x = tier, y = champLevel)) +
+cols_chr   <- c("gameName","tagLine","tier","individualPosition","championName")
+cols_date  <- c("date")       # YYYY-MM-DD ?
+cols_dttm  <- c("datetime")   # ISO 8601 ?
+
+# Limpieza rápida (espacios y tipos básicos)
+dfc <- Datos %>%
+  mutate(across(all_of(cols_chr), ~str_squish(as.character(.)))) %>%
+  mutate(across(all_of(cols_num), ~suppressWarnings(as.numeric(.)))) %>%
+  mutate(across(all_of(cols_date), ~suppressWarnings(as.Date(.)))) %>%
+  mutate(across(all_of(cols_dttm), ~suppressWarnings(lubridate::ymd_hms(.)))) %>%
+  clean_names()
+```
+
+
+```{r}
+colSums(is.na(dfc))
+```
+
+
+
+```{r}
+dfc |>
+  ggplot(aes(x = tier, y = champ_level)) +
   geom_boxplot()
 ```
 ```{r}
-Datos |>
+dfc |>
   summarise(across(where(is.character), ~ n_distinct(.x)))
 ```
 
 ```{r}
-unique(Datos$tier)
-unique(Datos$championName)
+unique(dfc$tier)
+unique(dfc$champion_name)
 ```
 Objetivo 1:
 
@@ -79,7 +118,7 @@ Definir el perfil y las características de los jugadores de rango Maestro, Gran
 ```{r}
 #filtrarlos según Tier(rango alto)
 
-datos_rango_alto <- Datos |>
+datos_rango_alto <- dfc |>
   filter(tier %in% c("MASTER", "GRANDMASTER", "CHALLENGER"))
 
 #Resumen Experiencia y frecuencia del juego
@@ -87,32 +126,32 @@ datos_rango_alto <- Datos |>
 datos_rango_alto |>
   group_by(tier) |>
   summarise(
-    promedio_experiencia = mean(champExperience, na.rm = TRUE),
-    sd_experiencia = sd(champExperience, na.rm = TRUE),
-    promedio_Tiempojugado = mean(timePlayed, na.rm = TRUE),
-    sd_Tiempojugado = sd(timePlayed, na.rm = TRUE)
+    promedio_experiencia = mean(champ_experience, na.rm = TRUE),
+    sd_experiencia = sd(champ_experience, na.rm = TRUE),
+    promedio_Tiempojugado = mean(time_played, na.rm = TRUE),
+    sd_Tiempojugado = sd(time_played, na.rm = TRUE)
   )
 ```
 ```{r}
 #Visualización de Experiencia y frecuencia del Juego
 
 datos_rango_alto |>
-  ggplot(aes(x = tier, y = champExperience)) +
+  ggplot(aes(x = tier, y = champ_experience)) +
   geom_boxplot() +
   labs(title = "Distribución de experiencia por rango")
 
 datos_rango_alto |>
-  ggplot(aes(x = tier, y = timePlayed)) +
+  ggplot(aes(x = tier, y = time_played)) +
   geom_boxplot() +
   labs(title = "Frecuencia de juego por rango")
 ```
 ```{r}
 #Resumen Posición desempeñada en partida
 datos_rango_alto |>
-  count(tier, individualPosition) |>
+  count(tier, individual_position) |>
   group_by(tier) |>
   mutate(porcentaje = n / sum(n) * 100) |>
-  ggplot(aes(x = individualPosition, y = porcentaje, fill = tier)) +
+  ggplot(aes(x = individual_position, y = porcentaje, fill = tier)) +
   geom_col(position = "dodge") +
   labs(title = "Posición desempeñada por rango")
 ```
@@ -146,7 +185,7 @@ datos_rango_alto |>
 
 datos_rango_alto <- datos_rango_alto |>
   mutate(
-    gpm = goldEarned/ (gameDuration / 60),
+    gpm = gold_earned/ (game_duration / 60),
     kda_ajustado = (kills + assists) / pmax(1, deaths),
     )
 
@@ -164,7 +203,7 @@ datos_rango_alto |>
 ```{r}
 #Torres
 datos_rango_alto <- datos_rango_alto |>
-  mutate(tower_dpm = damageDealtToTurrets / (gameDuration / 60))
+  mutate(tower_dpm = damage_dealt_to_turrets / (game_duration / 60))
 
 datos_rango_alto |>
   group_by(tier) |>
@@ -185,7 +224,7 @@ datos_rango_alto |>
 #Inhibidores
 
 datos_rango_alto <- datos_rango_alto |>
-  mutate(IPM = inhibitor_kills / (gameDuration / 60))
+  mutate(IPM = inhibitor_kills / (game_duration / 60))
 
 datos_rango_alto |>
   group_by(tier) |>
@@ -199,7 +238,7 @@ datos_rango_alto |>
 #Control de objetivos
 datos_rango_alto <- datos_rango_alto |>
   mutate(
-    total_objetivos = dragon_kills + baron_kills + herald_kills
+    total_objetivos = dragon_kills + baron_kills + herald_kills + tower_kills
   )
 
 datos_rango_alto |>
@@ -214,7 +253,7 @@ datos_rango_alto |>
 ```{r}
 datos_rango_alto <- datos_rango_alto |>
   mutate(
-    opm = total_objetivos / (gameDuration / 60)
+    opm = total_objetivos / (game_duration / 60)
   )
 
 datos_rango_alto |>
@@ -239,7 +278,7 @@ datos_rango_alto |>
 #Tiempo vivo
 
 datos_rango_alto <- datos_rango_alto |>
-  mutate(TV = longestTimeSpentLiving / (gameDuration / 60))
+  mutate(TV = longest_time_spent_living / (game_duration / 60))
 
 datos_rango_alto |>
   group_by(tier) |>
@@ -252,7 +291,7 @@ datos_rango_alto |>
 #Tiempo muerto
 
 datos_rango_alto <- datos_rango_alto |>
-  mutate(TM = totalTimeSpentDead / (gameDuration / 60))
+  mutate(TM = total_time_spent_dead / (game_duration / 60))
 
 datos_rango_alto |>
   group_by(tier) |>
@@ -266,7 +305,7 @@ datos_rango_alto |>
 #Tiempo controlando
 
 datos_rango_alto <- datos_rango_alto |>
-  mutate(TC = totalTimeCCDealt / (gameDuration / 60))
+  mutate(TC = total_time_cc_dealt / (game_duration / 60))
 
 datos_rango_alto |>
   group_by(tier) |>
@@ -275,27 +314,26 @@ datos_rango_alto |>
     sd_TC = sd(TC, na.rm = TRUE),
   )
 ```
-Conclusiónes generales del objetivo 2.
+ConclusiOnes generales del objetivo 2.
 
 Por indicadores de resultado:
 Para los Challenger el 
-```{r}
-```
+
 ```{r}
 resumen_rango_rol <- datos_rango_alto |>
-  group_by(tier, individualPosition) |>
+  group_by(tier, individual_position) |>
   summarise(
     partidas = n(),
     winrate = mean(win, na.rm = TRUE) * 100,
-    gpm = mean(goldEarned / (gameDuration / 60), na.rm = TRUE),
+    gpm = mean(gold_earned / (game_duration / 60), na.rm = TRUE),
     kda = mean((kills + assists) / pmax(1, deaths), na.rm = TRUE),
     objetivos = mean(dragon_kills + baron_kills + herald_kills, na.rm = TRUE),
-    cc_pm = mean(totalTimeCCDealt / gameDuration * 60, na.rm = TRUE),
+    cc_pm = mean(total_time_cc_dealt / game_duration * 60, na.rm = TRUE),
     .groups = "drop"
   )
 
 resumen_rango_rol |>
-  ggplot(aes(x = individualPosition, y = winrate, fill = tier)) +
+  ggplot(aes(x = individual_position, y = winrate, fill = tier)) +
   geom_col(position = "dodge") +
   labs(
     title = "Winrate por posición y rango",
@@ -307,7 +345,7 @@ resumen_rango_rol |>
 #Oro por minuto visualización
 
 resumen_rango_rol |>
-  ggplot(aes(x = individualPosition, y = gpm, fill = tier)) +
+  ggplot(aes(x = individual_position, y = gpm, fill = tier)) +
   geom_col(position = "dodge") +
   labs(
     title = "GPM por posición y rango",
@@ -317,7 +355,7 @@ resumen_rango_rol |>
 ```
 ```{r}
 resumen_rango_rol |>
-  ggplot(aes(x = individualPosition, y = kda, fill = tier)) +
+  ggplot(aes(x = individual_position, y = kda, fill = tier)) +
   geom_col(position = "dodge") +
   labs(
     title = "KDA ajustado por posición y rango",
@@ -327,7 +365,7 @@ resumen_rango_rol |>
 ```
 ```{r}
 datos_rango_alto |>
-  ggplot(aes(x = individualPosition, y = gameDuration / 60)) +  # convertimos a minutos
+  ggplot(aes(x = individual_position, y = game_duration / 60)) +  # convertimos a minutos
   geom_jitter(alpha = 0.4, color = "steelblue") +
   stat_summary(fun = mean, geom = "point", shape = 18, size = 4, color = "red") +
   labs(
@@ -339,7 +377,7 @@ datos_rango_alto |>
 ```
 ```{r}
 datos_rango_alto |>
-  ggplot(aes(x = gameDuration / 60, y = fct_inorder(puuid), color = individualPosition)) +
+  ggplot(aes(x = game_duration / 60, y = fct_inorder(puuid), color = individual_position)) +
   geom_point(alpha = 0.6) +
   labs(
     title = "Tiempo jugado por jugador, según rol y rango",
@@ -363,7 +401,7 @@ library(ggplot2)
 library(forcats)
 
 datos_challenger |>
-  ggplot(aes(x = gameDuration / 60, y = fct_inorder(puuid), color = individualPosition)) +
+  ggplot(aes(x = game_duration / 60, y = fct_inorder(puuid), color = individual_position)) +
   geom_point(alpha = 0.6, size = 2) +
   labs(
     title = "Duración de partida por jugador (Challenger)",
@@ -378,7 +416,7 @@ datos_challenger |>
   )
 ```
 ```{r}
-datos_challenger <- datos_rango_alto |>
+datos_master <- datos_rango_alto |>
   filter(tier == "MASTER")
 
 
@@ -386,10 +424,10 @@ library(ggplot2)
 library(forcats)
 
 datos_challenger |>
-  ggplot(aes(x = gameDuration / 60, y = fct_inorder(puuid), color = individualPosition)) +
+  ggplot(aes(x = game_duration / 60, y = fct_inorder(puuid), color = individual_position)) +
   geom_point(alpha = 0.6, size = 2) +
   labs(
-    title = "Duración de partida por jugador (Challenger)",
+    title = "Duración de partida por jugador (Master)",
     x = "Tiempo jugado (minutos)",
     y = "Jugador (puuid)",
     color = "Rol"
@@ -401,7 +439,7 @@ datos_challenger |>
   )
 ```
 ```{r}
-datos_challenger <- datos_rango_alto |>
+datos_granmaster <- datos_rango_alto |>
   filter(tier == "GRANDMASTER")
 
 
@@ -409,10 +447,10 @@ library(ggplot2)
 library(forcats)
 
 datos_challenger |>
-  ggplot(aes(x = gameDuration / 60, y = fct_inorder(puuid), color = individualPosition)) +
+  ggplot(aes(x = game_duration / 60, y = fct_inorder(puuid), color = individual_position)) +
   geom_point(alpha = 0.6, size = 2) +
   labs(
-    title = "Duración de partida por jugador (Challenger)",
+    title = "Duración de partida por jugador (Gran Master)",
     x = "Tiempo jugado (minutos)",
     y = "Jugador (puuid)",
     color = "Rol"
@@ -423,7 +461,156 @@ datos_challenger |>
     axis.ticks.y = element_blank()
   )
 ```
+```{r}
+#Correlaciones
+
+vars_cor <- datos_rango_alto %>%
+  select(win, gpm, kda_ajustado, total_objetivos)
+
+# Calcular matriz de correlaciones
+cor_matrix <- cor(vars_cor, use = "complete.obs")
+
+cor_matrix
+
 ```
+```{r}
+#Hipotesis planteada:
+#Existe una correlación positiva entre los principales indicadores de rendimiento competitivo, como la tasa de victorias (winrate), el oro ganado por minuto (GPM), el KDA ajustado y el control de objetivos.
+
+
+ggcorrplot(cor_matrix, 
+           hc.order = TRUE, 
+           type = "lower",
+           lab = TRUE,
+           lab_size = 4,
+           colors = c("red", "white", "blue"),
+           title = "Correlación entre Winrate, GPM, KDA y Control de Objetivos",
+           ggtheme = theme_minimal())
+```
+
+```{r}
+#Hipotesis planteada: 
+#La tasa de victorias (winrate) se correlaciona positivamente con el porcentaje de torres destruidas (Tower Percentage) y, a su vez, este indicador se relaciona con el número de inhibidores destruidos, lo que sugiere una progresión estratégica en el control del mapa.
+
+library(scales)
+
+MAX_TOWERS <- 11
+
+df_side <- datos_rango_alto %>%
+  group_by(match_id, win) %>%                 # dos grupos por partida: win=1 (ganador), win=0 (perdedor)
+  summarise(
+    tower_kills     = sum(tower_kills, na.rm = TRUE),
+    inhibitor_kills = sum(inhibitor_kills, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    tower_pct = pmin(tower_kills / MAX_TOWERS, 1),
+    winrate   = as.numeric(win)               # 0 o 1
+  )
+
+# 2) Correlaciones
+cor_win_tower <- cor.test(df_side$winrate, df_side$tower_pct,     use = "complete.obs")
+cor_tower_inh <- cor.test(df_side$tower_pct, df_side$inhibitor_kills, use = "complete.obs")
+
+cor_win_tower
+cor_tower_inh
+
+# 3) Gráficos de apoyo
+# Winrate (0/1) vs % torres (con curva logística)
+ggplot(df_side, aes(x = tower_pct, y = winrate)) +
+  geom_jitter(width = 0.02, height = 0.02, alpha = 0.25) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  scale_x_continuous(labels = percent_format(accuracy = 1)) +
+  labs(title = "Winrate vs % de torres destruidas",
+       x = "% de torres destruidas", y = "Winrate (0/1)") +
+  theme_minimal()
+
+# Inhibidores vs % torres
+ggplot(df_side, aes(x = tower_pct, y = inhibitor_kills)) +
+  geom_point(alpha = 0.35) +
+  geom_smooth(method = "lm", se = TRUE) +
+  scale_x_continuous(labels = percent_format(accuracy = 1)) +
+  labs(title = "Inhibidores destruidos vs % de torres destruidas",
+       x = "% de torres destruidas", y = "Inhibidores destruidos") +
+  theme_minimal()
+
+```
+#Que significan los valores
+
+**Winrate vs torres destruidas**
+
+cor = 0.685 → Correlación positiva y fuerte: cuando un lado destruye más torres, tiene mucha más probabilidad de ganar la partida.
+
+p-value < 2.2e-16 → Esta relación no es por azar, es estadísticamente significativa.
+
+IC 95% (0.676–0.694) → El valor verdadero de la correlación poblacional está en ese rango; siempre positivo y bastante alto.
+
+**Torres destruidas vs inhibidores destruidos**
+
+cor = 0.735 → Correlación positiva todavía más fuerte: cuantos más porcentajes de torres caen, más inhibidores se destruyen.
+
+p-value < 2.2e-16 → Extremadamente significativo.
+
+IC 95% (0.727–0.743) → La relación real casi seguro está en este rango alto.
+```{r}
+#Normalizar por duración
+
+df <- datos_rango_alto %>%
+  mutate(
+    minutes = pmax(time_played/60, 1),
+    gpm          = gold_earned / minutes,
+    kda_adj      = (kills + assists) / pmax(deaths, 1),
+    cs_min       = total_minions_killed / minutes,
+    dmg_dealt_min= total_damage_dealt / minutes,
+    dmg_taken_min= total_damage_taken / minutes,
+    vision_min   = vision_score / minutes,
+    cc_min       = (time_c_cing_others + total_time_cc_dealt) / (2*minutes)
+  )
+
+ggplot(df, aes(x = gpm)) + geom_histogram(bins = 50)
+```
+
+```{r}
+df <- df %>%
+  mutate(
+    obj_epicos = dragon_kills + herald_kills + baron_kills,
+    oci_raw    = 0.4*tower_kills + 0.3*inhibitor_kills + 0.3*obj_epicos
+  ) %>%
+  group_by(individual_position) %>%            # opcional: normaliza por rol
+  mutate(oci = scale(oci_raw)[,1]) %>%
+  ungroup()
+
+ggplot(df, aes(x = individual_position, y = oci)) + geom_boxplot()
+```
+
+```{r}
+#Predición de victoria
+m1 <- glm(win ~ gpm + kda_adj + oci + vision_min + dmg_dealt_min + cc_min,
+          data = df, family = binomial())
+broom::tidy(m1) |>
+  mutate(odds_ratio = exp(estimate)) |>
+  select(term, estimate, odds_ratio, p.value)
+```
+```{r}
+coefs <- broom::tidy(m1) |> mutate(odds = exp(estimate))
+ggplot(coefs, aes(x = reorder(term, odds), y = odds)) +
+  geom_point() + coord_flip() + geom_hline(yintercept=1, linetype=2)
+```
+
+```{r}
+library(ranger)
+
+rf <- ranger(
+  win ~ gpm + kda_adj + oci + vision_min + dmg_dealt_min + dmg_taken_min + cs_min + cc_min,
+  data = df, probability = TRUE, importance = "impurity"
+)
+
+sort(rf$variable.importance, decreasing = TRUE)
+```
+
+
+
+
 
 
 
