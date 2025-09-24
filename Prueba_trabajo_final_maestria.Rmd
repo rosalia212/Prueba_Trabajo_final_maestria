@@ -15,7 +15,9 @@ knitr::opts_chunk$set(error = TRUE)
 ```{r}
 paquetes_necesarios <- c(
   "flexdashboard", "tidyverse", "readxl", "readr", "dplyr", "ggplot2",
-  "ggrepel", "countrycode", "scales", "maps", "DT", "lorem", "png", "grid"
+  "ggrepel", "countrycode", "scales", "maps", "DT", "lorem", "png", 
+  "ggcorrplot","grid", "corrplot", "patchwork", "FactoMineR","ppcor",
+  "GGally","ranger","factoextra","keras","pROC","reticulate"
 )
 
 instalar_si_falta <- function(pkg) {
@@ -23,6 +25,7 @@ instalar_si_falta <- function(pkg) {
     install.packages(pkg)
   }
 }
+lapply(paquetes_necesarios, instalar_si_falta)
 message("Todos los paquetes necesarios están instalados.")
 
 library(tidyverse)
@@ -49,9 +52,10 @@ library(ggcorrplot)
 library(broom)
 
 ```
+
 ```{r}
 getwd()
-Datos_APILOL <- read_csv ("C:/Users/Rosalía Carballo/OneDrive/Documentos/Prueba_Trabajo_final_maestria/Datos/ryse_database.csv")
+Datos_APILOL <- read_csv("/Users/lizeth.herrera/Documents/Master/Repositorio_Rosalia/Datos/ryse_database.csv")
 Datos <- Datos_APILOL
 ```
 ```{r}
@@ -314,7 +318,7 @@ datos_rango_alto |>
     sd_TC = sd(TC, na.rm = TRUE),
   )
 ```
-ConclusiOnes generales del objetivo 2.
+Conclusiones generales del objetivo 2.
 
 Por indicadores de resultado:
 Para los Challenger el 
@@ -747,3 +751,76 @@ library(patchwork)
 p1 + p2 + p3
 ```
 
+
+```{r}
+library(keras)
+#install_keras()  # solo la primera vez
+library(dplyr)
+
+cols <- c("win","gpm","kda_adj","oci","vision_min",
+          "dmg_dealt_min","dmg_taken_min","cs_min","cc_min")
+
+vars_modelo <- df[, cols]   # toma solo esas columnas
+
+
+# Quitar NAs
+vars_modelo <- vars_modelo[stats::complete.cases(vars_modelo), ]
+
+# Escalado de X (manteniendo 'win' sin escalar)
+X <- scale(vars_modelo[, setdiff(cols, "win"), drop = FALSE])
+y <- vars_modelo[, "win"]
+
+
+# --- Split train/test ---
+set.seed(123)
+n <- nrow(X)
+idx <- sample.int(n, size = floor(0.8 * n))
+X_train <- X[idx, , drop = FALSE]
+X_test  <- X[-idx, , drop = FALSE]
+y_train <- y[idx]
+y_test  <- y[-idx]
+
+train_df <- data.frame(win = y_train, X_train)
+test_df  <- data.frame(win = y_test,  X_test)
+
+
+# --- Red neuronal con 'nnet' (sin TensorFlow) ---
+# Si no lo tienes: install.packages("nnet")
+library(nnet)
+
+# size = neuronas en la capa oculta; decay = regularización L2
+set.seed(123)
+nn <- nnet::nnet(
+  win ~ .,
+  data   = train_df,
+  size   = 10,
+  decay  = 1e-4,
+  maxit  = 500,
+  linout = FALSE,   # salida logística (clasificación)
+  trace  = FALSE
+)
+
+# Probabilidades de victoria en test
+pred_prob <- predict(nn, newdata = test_df, type = "raw")
+pred_cls  <- ifelse(pred_prob >= 0.5, 1, 0)
+
+# Métricas básicas
+cat("Accuracy:", mean(pred_cls == y_test), "\n")
+table(Predicho = pred_cls, Real = y_test)
+
+
+# --- Curva ROC y AUC ---
+# Si no lo tienes: install.packages("pROC")
+library(pROC)
+
+roc_obj <- pROC::roc(y_test, as.numeric(pred_prob))
+auc_val <- pROC::auc(roc_obj)
+print(paste("AUC:", round(auc_val, 3)))
+
+plot(roc_obj, col = "steelblue", lwd = 2, main = paste("ROC - AUC =", round(auc_val, 3)))
+abline(0, 1, lty = 2, col = "gray50")
+
+
+
+
+```
